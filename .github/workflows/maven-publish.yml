@@ -1,0 +1,84 @@
+name: Build installers
+
+on:
+  workflow_dispatch:        # lets you run it manually from the Actions tab
+  release:
+    types: [created]        # also runs when you create a GitHub release
+
+permissions:
+  contents: write           # needed to attach files to a release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false      # one OS failing doesn't cancel the others
+      matrix:
+        include:
+          - os: windows-2022
+            type: msi
+            extra: --win-menu --win-shortcut --win-dir-chooser
+          - os: macos-latest          # Apple Silicon
+            type: dmg
+            extra: ""
+          - os: ubuntu-latest
+            type: deb
+            extra: --linux-shortcut
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Install WiX (Windows only, if missing)
+        if: runner.os == 'Windows'
+        run: |
+          if ! command -v candle.exe >/dev/null 2>&1; then
+            choco install wixtoolset -y --no-progress
+          fi
+
+      - name: Install fakeroot (Linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+
+      - name: Build the jar
+        run: ./mvnw -B -q clean package
+
+      - name: Build the installer with jpackage
+        run: |
+          JAR=$(ls target/*.jar | grep -v original | head -1)
+          JARNAME=$(basename "$JAR")
+          mkdir -p build/input build/out
+          cp "$JAR" build/input/
+          jpackage --type ${{ matrix.type }} \
+            --name PDFSplitter \
+            --app-version 1.0 \
+            --vendor "Your Name" \
+            --description "Split a PDF into chapters" \
+            --input build/input \
+            --main-jar "$JARNAME" \
+            --main-class com.example.pdfsplitter.Launcher \
+            --add-modules java.desktop,java.logging,java.xml,jdk.unsupported \
+            ${{ matrix.extra }} \
+            --dest build/out
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDFSplitter-${{ runner.os }}
+          path: build/out/*
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/out/*
