@@ -2,7 +2,7 @@
 
 A desktop app that splits a PDF, such as a textbook, into one file per chapter. It reads the chapter list from the PDF's bookmarks or from its printed table of contents, lets you correct the list, and saves each chapter as its own PDF.
 
-[https://github.com/user-attachments/assets/5182fcc7-54ef-42ff-873c-e521927eba5a]
+Demo: https://github.com/user-attachments/assets/5182fcc7-54ef-42ff-873c-e521927eba5a
 
 
 ## Download
